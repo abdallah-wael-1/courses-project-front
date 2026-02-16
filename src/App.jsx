@@ -15,7 +15,7 @@ import CourseDetails from "./components/Courses/CourseDetails";
 import CourseForm from "./components/Courses/CourseForm";
 import NotFound from "./pages/NotFound";
 import Unauthorized from "./pages/unauthorized";
-import Profile from "./pages/profile";
+import Profile from "./pages/Profile";
 import Checkout from "./pages/Checkout"; 
 import ScrollToTop from "./components/layout/ScrollToTop";
 
