@@ -1,4 +1,4 @@
-const API_URL = 'https://courses-project-production.up.railway.app'; 
+const API_URL = import.meta.env.VITE_API_URL;
 
 export const getImageUrl = (imagePath) => {
   if (!imagePath) {
