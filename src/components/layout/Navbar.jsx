@@ -46,38 +46,15 @@ function Navbar() {
 
   const { isAuthenticated, user, logout } = useAuth();
 
-// Helper function to get avatar URL
-const getAvatarUrl = (avatar) => {
-  if (!avatar || avatar === "uploads/default.png") {
-    return null; // No avatar, show initials
-  }
+  // الـ avatar دلوقتي base64 أو URL كامل أو null - مفيش معالجة محتاجة
+  const avatarUrl = user?.avatar || null;
 
-  // If avatar is a full URL (starts with http)
-  if (avatar.startsWith("http")) {
-    return avatar;
-  }
-  
-  // If avatar is a relative path, prepend backend URL
-  const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-  return `${BACKEND_URL}/${avatar}`;
-};
-
-  // Get user initials for fallback
-  const getUserInitials = () => {
-    if (user?.firstName && user?.lastName) {
-      return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
-    }
-    if (user?.firstName) {
-      return user.firstName[0].toUpperCase();
-    }
-    if (user?.email) {
-      return user.email[0].toUpperCase();
-    }
+  const userInitials = (() => {
+    if (user?.firstName && user?.lastName) return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
+    if (user?.firstName) return user.firstName[0].toUpperCase();
+    if (user?.email) return user.email[0].toUpperCase();
     return "U";
-  };
-
-  const avatarUrl = getAvatarUrl(user?.avatar);
-  const userInitials = getUserInitials();
+  })();
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);

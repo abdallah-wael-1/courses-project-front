@@ -11,11 +11,10 @@ import {
   Box,
   Alert,
   CircularProgress,
-  Avatar,
 } from "@mui/material";
 import { CloudUpload, Save, ArrowBack } from "@mui/icons-material";
 import { createCourse, updateCourse, getCourseById } from "../../api/coursesApi";
-import { getImageUrl } from "../../utility/image";
+import { compressAndConvertToBase64, validateImageFile, getImageUrl }  from "../utility/image";
 
 function CourseForm() {
   const { id } = useParams();
@@ -23,6 +22,7 @@ function CourseForm() {
   const isEditMode = !!id;
 
   const [loading, setLoading] = useState(false);
+  const [fetchLoading, setFetchLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
@@ -35,31 +35,22 @@ function CourseForm() {
     level: "All Levels",
     duration: "",
     instructor: "",
-    thumbnail: null,
   });
 
   const categories = [
-    "Development",
-    "Design",
-    "Business",
-    "Marketing",
-    "IT & Software",
-    "Data Science",
-    "Other",
+    "Development", "Design", "Business",
+    "Marketing", "IT & Software", "Data Science", "Other",
   ];
 
   const levels = ["Beginner", "Intermediate", "Advanced", "All Levels"];
 
   useEffect(() => {
-    if (isEditMode) {
-      fetchCourse();
-    }
+    if (isEditMode) fetchCourse();
   }, [id]);
 
   const fetchCourse = async () => {
-    setLoading(true);
+    setFetchLoading(true);
     const result = await getCourseById(id);
-
     if (result.success) {
       const course = result.data;
       setFormData({
@@ -70,17 +61,14 @@ function CourseForm() {
         level: course.level,
         duration: course.duration,
         instructor: course.instructor,
-        thumbnail: null,
       });
-
       if (course.thumbnail) {
         setImagePreview(getImageUrl(course.thumbnail));
       }
     } else {
       setError(result.message);
     }
-
-    setLoading(false);
+    setFetchLoading(false);
   };
 
   const handleChange = (e) => {
@@ -89,26 +77,21 @@ function CourseForm() {
     setError("");
   };
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (!file.type.startsWith("image/")) {
-        setError("Please select an image file");
-        return;
-      }
+    if (!file) return;
 
-      if (file.size > 5 * 1024 * 1024) {
-        setError("Image size must be less than 5MB");
-        return;
-      }
+    const { valid, error: validationError } = validateImageFile(file, 5);
+    if (!valid) {
+      setError(validationError);
+      return;
+    }
 
-      setFormData((prev) => ({ ...prev, thumbnail: file }));
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+    try {
+      const base64 = await compressAndConvertToBase64(file, 800, 0.65);
+      setImagePreview(base64);
+    } catch {
+      setError("Failed to read image file");
     }
   };
 
@@ -117,42 +100,26 @@ function CourseForm() {
     setError("");
     setSuccess("");
 
-    // Validation
-    if (
-      !formData.title ||
-      !formData.description ||
-      !formData.price ||
-      !formData.duration ||
-      !formData.instructor
-    ) {
+    if (!formData.title || !formData.description || !formData.price ||
+        !formData.duration || !formData.instructor) {
       setError("All fields are required");
       return;
     }
 
     setLoading(true);
 
-    // Create FormData
-    const data = new FormData();
-    data.append("title", formData.title);
-    data.append("description", formData.description);
-    data.append("price", formData.price);
-    data.append("category", formData.category);
-    data.append("level", formData.level);
-    data.append("duration", formData.duration);
-    data.append("instructor", formData.instructor);
-
-    if (formData.thumbnail) {
-      data.append("thumbnail", formData.thumbnail);
-    }
+    // بنبعت JSON عادي - الصورة base64 string جوا الـ body
+    const payload = {
+      ...formData,
+      thumbnail: imagePreview || undefined,  // base64 string أو URL موجود
+    };
 
     const result = isEditMode
-      ? await updateCourse(id, data)
-      : await createCourse(data);
+      ? await updateCourse(id, payload)
+      : await createCourse(payload);
 
     if (result.success) {
-      setSuccess(
-        isEditMode ? "Course updated successfully!" : "Course created successfully!"
-      );
+      setSuccess(isEditMode ? "Course updated successfully!" : "Course created successfully!");
       setTimeout(() => navigate("/courses"), 1500);
     } else {
       setError(result.message);
@@ -161,16 +128,9 @@ function CourseForm() {
     setLoading(false);
   };
 
-  if (loading && isEditMode) {
+  if (fetchLoading) {
     return (
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          minHeight: "80vh",
-        }}
-      >
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "80vh" }}>
         <CircularProgress />
       </Box>
     );
@@ -178,11 +138,7 @@ function CourseForm() {
 
   return (
     <Container maxWidth="md" sx={{ py: 8 }}>
-      <Button
-        startIcon={<ArrowBack />}
-        onClick={() => navigate("/courses")}
-        sx={{ mb: 3 }}
-      >
+      <Button startIcon={<ArrowBack />} onClick={() => navigate("/courses")} sx={{ mb: 3 }}>
         Back to Courses
       </Button>
 
@@ -191,25 +147,15 @@ function CourseForm() {
           {isEditMode ? "Edit Course" : "Create New Course"}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-          {isEditMode
-            ? "Update course information"
-            : "Fill in the details to create a new course"}
+          {isEditMode ? "Update course information" : "Fill in the details to create a new course"}
         </Typography>
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
-        )}
-
-        {success && (
-          <Alert severity="success" sx={{ mb: 3 }}>
-            {success}
-          </Alert>
-        )}
+        {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+        {success && <Alert severity="success" sx={{ mb: 3 }}>{success}</Alert>}
 
         <Box component="form" onSubmit={handleSubmit}>
-          {/* Image Upload */}
+
+          {/* Image Upload - كل حاجة في الفرونت */}
           <Box sx={{ textAlign: "center", mb: 4 }}>
             <input
               accept="image/*"
@@ -234,10 +180,7 @@ function CourseForm() {
                   backgroundSize: "cover",
                   backgroundPosition: "center",
                   transition: "all 0.3s",
-                  "&:hover": {
-                    borderColor: "primary.dark",
-                    bgcolor: "action.hover",
-                  },
+                  "&:hover": { borderColor: "primary.dark", bgcolor: "action.hover" },
                 }}
               >
                 {!imagePreview && (
@@ -250,125 +193,73 @@ function CourseForm() {
                 )}
               </Box>
             </label>
-            <Typography variant="caption" color="text.secondary">
-              Max size: 5MB (JPG, PNG)
+
+            {imagePreview && (
+              <Button
+                size="small"
+                color="error"
+                onClick={() => setImagePreview(null)}
+                sx={{ mt: 1 }}
+              >
+                Remove Image
+              </Button>
+            )}
+
+            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+              Max size: 5MB (JPG, PNG, WebP)
             </Typography>
           </Box>
 
           <Grid container spacing={3}>
-            {/* Title */}
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Course Title"
-                name="title"
-                value={formData.title}
-                onChange={handleChange}
-                required
-              />
+              <TextField fullWidth label="Course Title" name="title"
+                value={formData.title} onChange={handleChange} required />
             </Grid>
 
-            {/* Description */}
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Description"
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                multiline
-                rows={4}
-                required
-              />
+              <TextField fullWidth label="Description" name="description"
+                value={formData.description} onChange={handleChange}
+                multiline rows={4} required />
             </Grid>
 
-            {/* Price */}
             <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Price ($)"
-                name="price"
-                type="number"
-                value={formData.price}
-                onChange={handleChange}
-                required
-                inputProps={{ min: 0, step: 0.01 }}
-              />
+              <TextField fullWidth label="Price ($)" name="price" type="number"
+                value={formData.price} onChange={handleChange} required
+                inputProps={{ min: 0, step: 0.01 }} />
             </Grid>
 
-            {/* Duration */}
             <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Duration (hours)"
-                name="duration"
-                type="number"
-                value={formData.duration}
-                onChange={handleChange}
-                required
-                inputProps={{ min: 0 }}
-              />
+              <TextField fullWidth label="Duration (hours)" name="duration" type="number"
+                value={formData.duration} onChange={handleChange} required
+                inputProps={{ min: 0 }} />
             </Grid>
 
-            {/* Category */}
             <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                select
-                label="Category"
-                name="category"
-                value={formData.category}
-                onChange={handleChange}
-                required
-              >
+              <TextField fullWidth select label="Category" name="category"
+                value={formData.category} onChange={handleChange} required>
                 {categories.map((cat) => (
-                  <MenuItem key={cat} value={cat}>
-                    {cat}
-                  </MenuItem>
+                  <MenuItem key={cat} value={cat}>{cat}</MenuItem>
                 ))}
               </TextField>
             </Grid>
 
-            {/* Level */}
             <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                select
-                label="Level"
-                name="level"
-                value={formData.level}
-                onChange={handleChange}
-                required
-              >
+              <TextField fullWidth select label="Level" name="level"
+                value={formData.level} onChange={handleChange} required>
                 {levels.map((lvl) => (
-                  <MenuItem key={lvl} value={lvl}>
-                    {lvl}
-                  </MenuItem>
+                  <MenuItem key={lvl} value={lvl}>{lvl}</MenuItem>
                 ))}
               </TextField>
             </Grid>
 
-            {/* Instructor */}
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Instructor Name"
-                name="instructor"
-                value={formData.instructor}
-                onChange={handleChange}
-                required
-              />
+              <TextField fullWidth label="Instructor Name" name="instructor"
+                value={formData.instructor} onChange={handleChange} required />
             </Grid>
           </Grid>
 
-          {/* Buttons */}
           <Box sx={{ display: "flex", gap: 2, mt: 4 }}>
-            <Button
-              variant="outlined"
-              fullWidth
-              onClick={() => navigate("/courses")}
-              disabled={loading}
-            >
+            <Button variant="outlined" fullWidth onClick={() => navigate("/courses")} disabled={loading}>
               Cancel
             </Button>
             <Button
@@ -379,16 +270,10 @@ function CourseForm() {
               startIcon={loading ? <CircularProgress size={20} /> : <Save />}
               sx={{
                 background: "linear-gradient(45deg, #6366f1, #f59e0b)",
-                "&:hover": {
-                  background: "linear-gradient(45deg, #4f46e5, #d97706)",
-                },
+                "&:hover": { background: "linear-gradient(45deg, #4f46e5, #d97706)" },
               }}
             >
-              {loading
-                ? "Saving..."
-                : isEditMode
-                ? "Update Course"
-                : "Create Course"}
+              {loading ? "Saving..." : isEditMode ? "Update Course" : "Create Course"}
             </Button>
           </Box>
         </Box>

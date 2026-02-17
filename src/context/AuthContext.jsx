@@ -1,5 +1,4 @@
 // context/AuthContext.jsx
-
 import { createContext, useState, useContext, useEffect } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import axiosInstance from '../api/axiosInstance';
@@ -15,16 +14,16 @@ export const AuthProvider = ({ children }) => {
     const initAuth = async () => {
       const storedToken = localStorage.getItem('token');
       const storedUser = localStorage.getItem('user');
-      
+
       if (storedToken) {
         try {
           const decoded = jwtDecode(storedToken);
-          
+
           if (decoded.exp * 1000 < Date.now()) {
             logout();
           } else {
             setToken(storedToken);
-            
+
             if (storedUser) {
               setUser(JSON.parse(storedUser));
             } else {
@@ -50,15 +49,12 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, []);
 
-  // Register
+  // Register - ✅ JSON بدل FormData
   const register = async (userData) => {
     try {
-      const response = await axiosInstance.post('/users/register', userData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      
+      const response = await axiosInstance.post('/users/register', userData);
+      // userData هنا object عادي فيه avatar كـ base64 string لو موجود
+
       const { data } = response.data;
       const newToken = data.token;
 
@@ -75,7 +71,7 @@ export const AuthProvider = ({ children }) => {
       setUser(newUser);
       localStorage.setItem('token', newToken);
       localStorage.setItem('user', JSON.stringify(newUser));
-      
+
       return { success: true, data: newUser };
     } catch (error) {
       return {
@@ -121,17 +117,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Update Profile
-  const updateProfile = async (formData) => {
+  // Update Profile - ✅ JSON بدل FormData
+  const updateProfile = async (payload) => {
     try {
-      const response = await axiosInstance.patch('/users/profile', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response = await axiosInstance.patch('/users/profile', payload);
+      // payload هنا object عادي فيه avatar كـ base64 string لو اتغيرت
 
       const updatedUser = response.data.data;
-      
+
       setUser(updatedUser);
       localStorage.setItem('user', JSON.stringify(updatedUser));
 
@@ -157,11 +150,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ✅ Delete Account
+  // Delete Account
   const deleteAccount = async () => {
     try {
       const response = await axiosInstance.delete('/users/account');
-      
       if (response.data.status === 'success') {
         logout();
         return { success: true, message: response.data.message };
@@ -192,7 +184,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     updateProfile,
     updatePassword,
-    deleteAccount, 
+    deleteAccount,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

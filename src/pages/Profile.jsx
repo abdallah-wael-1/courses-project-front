@@ -13,7 +13,6 @@ import {
   Divider,
   useTheme,
   alpha,
-  Alert,
   InputAdornment,
   Chip,
   Stack,
@@ -46,7 +45,7 @@ import {
   ErrorOutline,
 } from "@mui/icons-material";
 import { useAuth } from "../context/AuthContext";
-import { getImageUrl } from "../utility/image";
+import { compressAndConvertToBase64, validateImageFile, getImageUrl } from "../utility/image";
 import React from "react";
 
 const Transition = React.forwardRef(function Transition(props, ref) {
@@ -61,10 +60,8 @@ function Profile() {
 
   const [editMode, setEditMode] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState("");
-  const [error, setError] = useState("");
 
-  //  Modal States
+  // Modal States
   const [deleteAvatarModal, setDeleteAvatarModal] = useState(false);
   const [deleteAccountModal, setDeleteAccountModal] = useState(false);
   const [successModal, setSuccessModal] = useState(false);
@@ -86,9 +83,9 @@ function Profile() {
     education: "",
   });
 
-  // Avatar
-  const [avatarFile, setAvatarFile] = useState(null);
-  const [avatarPreview, setAvatarPreview] = useState(null);
+  // Avatar - base64 string بدل File object
+  const [avatarBase64, setAvatarBase64] = useState(null);   // الصورة الجديدة المختارة
+  const [avatarPreview, setAvatarPreview] = useState(null);  // للعرض في الـ UI
 
   // Password Change
   const [passwordData, setPasswordData] = useState({
@@ -121,56 +118,45 @@ function Profile() {
 
   const handleProfileChange = (e) => {
     const { name, value } = e.target;
-    setProfileData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setProfileData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handlePasswordChange = (e) => {
     const { name, value } = e.target;
-    setPasswordData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setPasswordData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleAvatarChange = (e) => {
+  // تحويل الصورة لـ base64 في الفرونت مباشرة
+  const handleAvatarChange = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (!file.type.startsWith("image/")) {
-        setModalMessage("Please select an image file (JPG, PNG, etc.)");
-        setErrorModal(true);
-        return;
-      }
+    if (!file) return;
 
-      if (file.size > 5 * 1024 * 1024) {
-        setModalMessage("Image size must be less than 5MB. Please choose a smaller file.");
-        setErrorModal(true);
-        return;
-      }
+    const { valid, error } = validateImageFile(file, 5);
+    if (!valid) {
+      setModalMessage(error);
+      setErrorModal(true);
+      return;
+    }
 
-      setAvatarFile(file);
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+    try {
+      const base64 = await compressAndConvertToBase64(file, 600, 0.6);
+      setAvatarBase64(base64);
+      setAvatarPreview(base64);
+    } catch {
+      setModalMessage("Failed to read image. Please try again.");
+      setErrorModal(true);
     }
   };
 
-  //  Handle Delete Avatar Confirmation
   const handleDeleteAvatarConfirm = () => {
     setAvatarPreview(null);
-    setAvatarFile(null);
+    setAvatarBase64(null);
     setDeleteAvatarModal(false);
     setModalMessage("Avatar will be removed when you save your changes");
     setSuccessModal(true);
   };
 
   const handleSaveProfile = async () => {
-    // Validation
     if (!profileData.firstName.trim() || !profileData.lastName.trim()) {
       setModalMessage("First name and last name are required");
       setErrorModal(true);
@@ -178,35 +164,39 @@ function Profile() {
     }
 
     setLoading(true);
-    setError("");
-    setSuccess("");
 
     try {
-      const formData = new FormData();
+      // بنبعت JSON عادي بدون FormData
+      const payload = {};
 
-      Object.keys(profileData).forEach((key) => {
-        if (profileData[key] !== user[key]) {
-          formData.append(key, profileData[key]);
+      // بس الحقول اللي اتغيرت
+      const textFields = [
+        'firstName', 'lastName', 'phone', 'bio',
+        'location', 'dateOfBirth', 'occupation', 'education'
+      ];
+      textFields.forEach((key) => {
+        if (profileData[key] !== (user[key] || "")) {
+          payload[key] = profileData[key];
         }
       });
 
-      if (avatarFile) {
-        formData.append("avatar", avatarFile);
+      // الصورة
+      if (avatarBase64) {
+        payload.avatar = avatarBase64;          // base64 string
+      } else if (!avatarPreview && user.avatar) {
+        payload.removeAvatar = true;             // إشارة للباك يمسح الصورة
       }
 
-      if (!avatarPreview && user.avatar) {
-        formData.append("removeAvatar", "true");
-      }
-
-      const result = await updateProfile(formData);
+      const result = await updateProfile(payload);
 
       if (result.success) {
         setModalMessage("Your profile has been updated successfully!");
         setSuccessModal(true);
         setEditMode(false);
-        setAvatarFile(null);
+        setAvatarBase64(null);
+        // اعرض الصورة الجديدة من الـ response
         setTimeout(() => {
-          setAvatarPreview(result.data.avatar ? getImageUrl(result.data.avatar) : null);
+          setAvatarPreview(result.data?.avatar ? getImageUrl(result.data.avatar) : null);
         }, 100);
       } else {
         setModalMessage(result.message || "Failed to update profile. Please try again.");
@@ -221,31 +211,25 @@ function Profile() {
   };
 
   const handleChangePassword = async () => {
-    setLoading(true);
-    setError("");
-    setSuccess("");
-
     if (!passwordData.currentPassword || !passwordData.newPassword) {
       setModalMessage("Please fill in all password fields");
       setErrorModal(true);
-      setLoading(false);
       return;
     }
 
     if (passwordData.newPassword.length < 6) {
       setModalMessage("New password must be at least 6 characters long");
       setErrorModal(true);
-      setLoading(false);
       return;
     }
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       setModalMessage("New passwords do not match. Please check and try again.");
       setErrorModal(true);
-      setLoading(false);
       return;
     }
 
+    setLoading(true);
     try {
       const result = await updatePassword({
         currentPassword: passwordData.currentPassword,
@@ -254,11 +238,7 @@ function Profile() {
 
       if (result.success) {
         setPasswordSuccessModal(true);
-        setPasswordData({
-          currentPassword: "",
-          newPassword: "",
-          confirmPassword: "",
-        });
+        setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
       } else {
         setModalMessage(result.message || "Failed to change password. Please check your current password.");
         setErrorModal(true);
@@ -273,7 +253,7 @@ function Profile() {
 
   const handleCancelEdit = () => {
     setEditMode(false);
-    setAvatarFile(null);
+    setAvatarBase64(null);
     if (user) {
       setProfileData({
         firstName: user.firstName || "",
@@ -290,19 +270,14 @@ function Profile() {
     }
   };
 
-  //  Handle Delete Account
   const handleDeleteAccountConfirm = async () => {
     if (confirmText !== "DELETE") {
       setModalMessage("Please type DELETE exactly as shown to confirm");
       setErrorModal(true);
       return;
     }
-
     setLoading(true);
-    setError("");
-
     const result = await deleteAccount();
-
     if (result.success) {
       setDeleteAccountModal(false);
       navigate("/");
@@ -315,27 +290,14 @@ function Profile() {
 
   if (authLoading || !user) {
     return (
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          minHeight: "80vh",
-        }}
-      >
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "80vh" }}>
         <CircularProgress />
       </Box>
     );
   }
 
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        bgcolor: isDark ? "background.default" : "#fafafa",
-        py: { xs: 4, md: 6 },
-      }}
-    >
+    <Box sx={{ minHeight: "100vh", bgcolor: isDark ? "background.default" : "#fafafa", py: { xs: 4, md: 6 } }}>
       <Container maxWidth="lg">
         {/* Header */}
         <Box sx={{ mb: 4, textAlign: "center" }}>
@@ -355,23 +317,14 @@ function Profile() {
           >
             My Profile
           </Typography>
-          <Typography
-            variant="h6"
-            sx={{ color: isDark ? "rgba(255, 255, 255, 0.7)" : "text.secondary" }}
-          >
+          <Typography variant="h6" sx={{ color: isDark ? "rgba(255, 255, 255, 0.7)" : "text.secondary" }}>
             Manage your account settings and preferences
           </Typography>
         </Box>
 
         {/* Main Profile Card */}
-        <Paper
-          elevation={3}
-          sx={{
-            borderRadius: 4,
-            overflow: "hidden",
-            mb: 4,
-          }}
-        >
+        <Paper elevation={3} sx={{ borderRadius: 4, overflow: "hidden", mb: 4 }}>
+
           {/* Header Section with Avatar */}
           <Box
             sx={{
@@ -413,32 +366,24 @@ function Profile() {
 
               {editMode && (
                 <>
-                  {/* Upload Button */}
                   <IconButton
                     component="label"
                     htmlFor="avatar-upload"
                     sx={{
-                      position: "absolute",
-                      bottom: 0,
-                      right: 0,
-                      bgcolor: "primary.main",
-                      color: "white",
+                      position: "absolute", bottom: 0, right: 0,
+                      bgcolor: "primary.main", color: "white",
                       "&:hover": { bgcolor: "primary.dark" },
                     }}
                   >
                     <PhotoCamera />
                   </IconButton>
 
-                  {/* Delete Button */}
                   {avatarPreview && (
                     <IconButton
                       onClick={() => setDeleteAvatarModal(true)}
                       sx={{
-                        position: "absolute",
-                        bottom: 0,
-                        left: 0,
-                        bgcolor: "error.main",
-                        color: "white",
+                        position: "absolute", bottom: 0, left: 0,
+                        bgcolor: "error.main", color: "white",
                         "&:hover": { bgcolor: "error.dark" },
                       }}
                     >
@@ -449,7 +394,6 @@ function Profile() {
               )}
             </Box>
 
-            {/* User Name */}
             <Typography variant="h4" fontWeight={700} sx={{ color: "white", mb: 0.5 }}>
               {profileData.firstName} {profileData.lastName}
             </Typography>
@@ -470,15 +414,8 @@ function Profile() {
 
           {/* Profile Content */}
           <Box sx={{ p: 4 }}>
-            <Stack
-              direction="row"
-              justifyContent="space-between"
-              alignItems="center"
-              sx={{ mb: 4 }}
-            >
-              <Typography variant="h5" fontWeight={700}>
-                Personal Information
-              </Typography>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
+              <Typography variant="h5" fontWeight={700}>Personal Information</Typography>
               {!editMode ? (
                 <Button
                   startIcon={<Edit />}
@@ -486,21 +423,14 @@ function Profile() {
                   onClick={() => setEditMode(true)}
                   sx={{
                     background: "linear-gradient(45deg, #6366f1, #a855f7)",
-                    "&:hover": {
-                      background: "linear-gradient(45deg, #4f46e5, #8b5cf6)",
-                    },
+                    "&:hover": { background: "linear-gradient(45deg, #4f46e5, #8b5cf6)" },
                   }}
                 >
                   Edit Profile
                 </Button>
               ) : (
                 <Stack direction="row" spacing={2}>
-                  <Button
-                    startIcon={<Cancel />}
-                    variant="outlined"
-                    onClick={handleCancelEdit}
-                    disabled={loading}
-                  >
+                  <Button startIcon={<Cancel />} variant="outlined" onClick={handleCancelEdit} disabled={loading}>
                     Cancel
                   </Button>
                   <Button
@@ -510,9 +440,7 @@ function Profile() {
                     disabled={loading}
                     sx={{
                       background: "linear-gradient(45deg, #6366f1, #a855f7)",
-                      "&:hover": {
-                        background: "linear-gradient(45deg, #4f46e5, #8b5cf6)",
-                      },
+                      "&:hover": { background: "linear-gradient(45deg, #4f46e5, #8b5cf6)" },
                     }}
                   >
                     {loading ? "Saving..." : "Save Changes"}
@@ -524,155 +452,65 @@ function Profile() {
             <Grid container spacing={3}>
               <Grid item xs={12} sm={6}>
                 <TextField
-                  fullWidth
-                  label="First Name"
-                  name="firstName"
-                  value={profileData.firstName}
-                  onChange={handleProfileChange}
-                  disabled={!editMode}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Person />
-                      </InputAdornment>
-                    ),
-                  }}
+                  fullWidth label="First Name" name="firstName"
+                  value={profileData.firstName} onChange={handleProfileChange} disabled={!editMode}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><Person /></InputAdornment> }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
-                  fullWidth
-                  label="Last Name"
-                  name="lastName"
-                  value={profileData.lastName}
-                  onChange={handleProfileChange}
-                  disabled={!editMode}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Person />
-                      </InputAdornment>
-                    ),
-                  }}
+                  fullWidth label="Last Name" name="lastName"
+                  value={profileData.lastName} onChange={handleProfileChange} disabled={!editMode}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><Person /></InputAdornment> }}
                 />
               </Grid>
               <Grid item xs={12}>
                 <TextField
-                  fullWidth
-                  label="Email"
-                  name="email"
-                  value={profileData.email}
-                  disabled
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Email />
-                      </InputAdornment>
-                    ),
-                  }}
+                  fullWidth label="Email" name="email" value={profileData.email} disabled
+                  InputProps={{ startAdornment: <InputAdornment position="start"><Email /></InputAdornment> }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
-                  fullWidth
-                  label="Phone Number"
-                  name="phone"
-                  value={profileData.phone}
-                  onChange={handleProfileChange}
-                  disabled={!editMode}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Phone />
-                      </InputAdornment>
-                    ),
-                  }}
+                  fullWidth label="Phone Number" name="phone"
+                  value={profileData.phone} onChange={handleProfileChange} disabled={!editMode}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><Phone /></InputAdornment> }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
-                  fullWidth
-                  label="Date of Birth"
-                  name="dateOfBirth"
-                  type="date"
-                  value={profileData.dateOfBirth}
-                  onChange={handleProfileChange}
-                  disabled={!editMode}
+                  fullWidth label="Date of Birth" name="dateOfBirth" type="date"
+                  value={profileData.dateOfBirth} onChange={handleProfileChange} disabled={!editMode}
                   InputLabelProps={{ shrink: true }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Cake />
-                      </InputAdornment>
-                    ),
-                  }}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><Cake /></InputAdornment> }}
                 />
               </Grid>
               <Grid item xs={12}>
                 <TextField
-                  fullWidth
-                  label="Location"
-                  name="location"
-                  value={profileData.location}
-                  onChange={handleProfileChange}
-                  disabled={!editMode}
-                  placeholder="e.g. Cairo, Egypt"
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <LocationOn />
-                      </InputAdornment>
-                    ),
-                  }}
+                  fullWidth label="Location" name="location" placeholder="e.g. Cairo, Egypt"
+                  value={profileData.location} onChange={handleProfileChange} disabled={!editMode}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><LocationOn /></InputAdornment> }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
-                  fullWidth
-                  label="Occupation"
-                  name="occupation"
-                  value={profileData.occupation}
-                  onChange={handleProfileChange}
-                  disabled={!editMode}
-                  placeholder="e.g. Software Engineer"
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Work />
-                      </InputAdornment>
-                    ),
-                  }}
+                  fullWidth label="Occupation" name="occupation" placeholder="e.g. Software Engineer"
+                  value={profileData.occupation} onChange={handleProfileChange} disabled={!editMode}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><Work /></InputAdornment> }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
-                  fullWidth
-                  label="Education"
-                  name="education"
-                  value={profileData.education}
-                  onChange={handleProfileChange}
-                  disabled={!editMode}
-                  placeholder="e.g. Bachelor's in Computer Science"
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <School />
-                      </InputAdornment>
-                    ),
-                  }}
+                  fullWidth label="Education" name="education" placeholder="e.g. Bachelor's in CS"
+                  value={profileData.education} onChange={handleProfileChange} disabled={!editMode}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><School /></InputAdornment> }}
                 />
               </Grid>
               <Grid item xs={12}>
                 <TextField
-                  fullWidth
-                  label="Bio"
-                  name="bio"
-                  value={profileData.bio}
-                  onChange={handleProfileChange}
-                  disabled={!editMode}
-                  multiline
-                  rows={4}
+                  fullWidth label="Bio" name="bio" multiline rows={4}
                   placeholder="Tell us about yourself..."
+                  value={profileData.bio} onChange={handleProfileChange} disabled={!editMode}
                 />
               </Grid>
             </Grid>
@@ -680,18 +518,10 @@ function Profile() {
         </Paper>
 
         {/* Security Card */}
-        <Paper
-          elevation={3}
-          sx={{
-            borderRadius: 4,
-            p: 4,
-          }}
-        >
+        <Paper elevation={3} sx={{ borderRadius: 4, p: 4 }}>
           <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
             <Lock sx={{ fontSize: 28, color: "primary.main" }} />
-            <Typography variant="h5" fontWeight={700}>
-              Security
-            </Typography>
+            <Typography variant="h5" fontWeight={700}>Security</Typography>
           </Stack>
 
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
@@ -701,23 +531,13 @@ function Profile() {
           <Grid container spacing={3}>
             <Grid item xs={12}>
               <TextField
-                fullWidth
-                label="Current Password"
-                name="currentPassword"
+                fullWidth label="Current Password" name="currentPassword"
                 type={showPasswords.current ? "text" : "password"}
-                value={passwordData.currentPassword}
-                onChange={handlePasswordChange}
+                value={passwordData.currentPassword} onChange={handlePasswordChange}
                 InputProps={{
                   endAdornment: (
                     <InputAdornment position="end">
-                      <IconButton
-                        onClick={() =>
-                          setShowPasswords((prev) => ({
-                            ...prev,
-                            current: !prev.current,
-                          }))
-                        }
-                      >
+                      <IconButton onClick={() => setShowPasswords(p => ({ ...p, current: !p.current }))}>
                         {showPasswords.current ? <VisibilityOff /> : <Visibility />}
                       </IconButton>
                     </InputAdornment>
@@ -727,20 +547,13 @@ function Profile() {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
-                fullWidth
-                label="New Password"
-                name="newPassword"
+                fullWidth label="New Password" name="newPassword"
                 type={showPasswords.new ? "text" : "password"}
-                value={passwordData.newPassword}
-                onChange={handlePasswordChange}
+                value={passwordData.newPassword} onChange={handlePasswordChange}
                 InputProps={{
                   endAdornment: (
                     <InputAdornment position="end">
-                      <IconButton
-                        onClick={() =>
-                          setShowPasswords((prev) => ({ ...prev, new: !prev.new }))
-                        }
-                      >
+                      <IconButton onClick={() => setShowPasswords(p => ({ ...p, new: !p.new }))}>
                         {showPasswords.new ? <VisibilityOff /> : <Visibility />}
                       </IconButton>
                     </InputAdornment>
@@ -750,23 +563,13 @@ function Profile() {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
-                fullWidth
-                label="Confirm New Password"
-                name="confirmPassword"
+                fullWidth label="Confirm New Password" name="confirmPassword"
                 type={showPasswords.confirm ? "text" : "password"}
-                value={passwordData.confirmPassword}
-                onChange={handlePasswordChange}
+                value={passwordData.confirmPassword} onChange={handlePasswordChange}
                 InputProps={{
                   endAdornment: (
                     <InputAdornment position="end">
-                      <IconButton
-                        onClick={() =>
-                          setShowPasswords((prev) => ({
-                            ...prev,
-                            confirm: !prev.confirm,
-                          }))
-                        }
-                      >
+                      <IconButton onClick={() => setShowPasswords(p => ({ ...p, confirm: !p.confirm }))}>
                         {showPasswords.confirm ? <VisibilityOff /> : <Visibility />}
                       </IconButton>
                     </InputAdornment>
@@ -776,14 +579,10 @@ function Profile() {
             </Grid>
             <Grid item xs={12}>
               <Button
-                variant="contained"
-                onClick={handleChangePassword}
-                disabled={loading}
+                variant="contained" onClick={handleChangePassword} disabled={loading}
                 sx={{
                   background: "linear-gradient(45deg, #6366f1, #a855f7)",
-                  "&:hover": {
-                    background: "linear-gradient(45deg, #4f46e5, #8b5cf6)",
-                  },
+                  "&:hover": { background: "linear-gradient(45deg, #4f46e5, #8b5cf6)" },
                 }}
               >
                 {loading ? "Updating..." : "Update Password"}
@@ -794,34 +593,17 @@ function Profile() {
           <Divider sx={{ my: 4 }} />
 
           {/* Danger Zone */}
-          <Box
-            sx={{
-              p: 3,
-              borderRadius: 2,
-              bgcolor: alpha("#ff6b6b", 0.05),
-              border: `1px solid ${alpha("#ff6b6b", 0.2)}`,
-            }}
-          >
+          <Box sx={{ p: 3, borderRadius: 2, bgcolor: alpha("#ff6b6b", 0.05), border: `1px solid ${alpha("#ff6b6b", 0.2)}` }}>
             <Typography variant="h6" fontWeight={700} color="error" gutterBottom>
               ⚠️ Danger Zone
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Once you delete your account, there is no going back. All your data, courses,
-              and progress will be permanently deleted.
+              Once you delete your account, there is no going back. All your data, courses, and progress will be permanently deleted.
             </Typography>
             <Button
-              variant="outlined"
-              color="error"
-              startIcon={<Delete />}
-              onClick={() => setDeleteAccountModal(true)}
-              disabled={loading}
-              sx={{
-                fontWeight: 600,
-                "&:hover": {
-                  bgcolor: "error.main",
-                  color: "white",
-                },
-              }}
+              variant="outlined" color="error" startIcon={<Delete />}
+              onClick={() => setDeleteAccountModal(true)} disabled={loading}
+              sx={{ fontWeight: 600, "&:hover": { bgcolor: "error.main", color: "white" } }}
             >
               Delete My Account
             </Button>
@@ -829,308 +611,122 @@ function Profile() {
         </Paper>
       </Container>
 
-      <Dialog
-        open={successModal}
-        TransitionComponent={Transition}
-        keepMounted
-        onClose={() => setSuccessModal(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 4,
-            boxShadow: "0 24px 48px rgba(0,0,0,0.3)",
-          }
-        }}
-      >
+      {/* Success Modal */}
+      <Dialog open={successModal} TransitionComponent={Transition} keepMounted onClose={() => setSuccessModal(false)}
+        maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 4, boxShadow: "0 24px 48px rgba(0,0,0,0.3)" } }}>
         <DialogTitle sx={{ textAlign: "center", pt: 4, pb: 2 }}>
-          <Box
-            sx={{
-              width: 80,
-              height: 80,
-              borderRadius: "50%",
-              bgcolor: "success.lighter",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              mx: "auto",
-              mb: 2,
-            }}
-          >
+          <Box sx={{ width: 80, height: 80, borderRadius: "50%", bgcolor: "success.lighter", display: "flex", alignItems: "center", justifyContent: "center", mx: "auto", mb: 2 }}>
             <CheckCircleOutline sx={{ fontSize: 48, color: "success.main" }} />
           </Box>
-          <Typography variant="h5" fontWeight={700} color="success.main">
-            Success!
-          </Typography>
+          <Typography variant="h5" fontWeight={700} color="success.main">Success!</Typography>
         </DialogTitle>
-        
         <DialogContent sx={{ textAlign: "center", pb: 2 }}>
-          <Typography variant="body1" color="text.secondary">
-            {modalMessage}
-          </Typography>
+          <Typography variant="body1" color="text.secondary">{modalMessage}</Typography>
         </DialogContent>
-        
         <DialogActions sx={{ justifyContent: "center", pb: 4 }}>
-          <Button
-            onClick={() => setSuccessModal(false)}
-            variant="contained"
-            color="success"
-            size="large"
-            sx={{
-              px: 6,
-              py: 1.5,
-              borderRadius: 2,
-              fontWeight: 700,
-            }}
-          >
+          <Button onClick={() => setSuccessModal(false)} variant="contained" color="success" size="large" sx={{ px: 6, py: 1.5, borderRadius: 2, fontWeight: 700 }}>
             Great!
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog
-        open={errorModal}
-        TransitionComponent={Transition}
-        keepMounted
-        onClose={() => setErrorModal(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 4,
-            boxShadow: "0 24px 48px rgba(0,0,0,0.3)",
-          }
-        }}
-      >
+      {/* Error Modal */}
+      <Dialog open={errorModal} TransitionComponent={Transition} keepMounted onClose={() => setErrorModal(false)}
+        maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 4, boxShadow: "0 24px 48px rgba(0,0,0,0.3)" } }}>
         <DialogTitle sx={{ textAlign: "center", pt: 4, pb: 2 }}>
-          <Box
-            sx={{
-              width: 80,
-              height: 80,
-              borderRadius: "50%",
-              bgcolor: "error.lighter",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              mx: "auto",
-              mb: 2,
-            }}
-          >
+          <Box sx={{ width: 80, height: 80, borderRadius: "50%", bgcolor: "error.lighter", display: "flex", alignItems: "center", justifyContent: "center", mx: "auto", mb: 2 }}>
             <ErrorOutline sx={{ fontSize: 48, color: "error.main" }} />
           </Box>
-          <Typography variant="h5" fontWeight={700} color="error.main">
-            Oops!
-          </Typography>
+          <Typography variant="h5" fontWeight={700} color="error.main">Oops!</Typography>
         </DialogTitle>
-        
         <DialogContent sx={{ textAlign: "center", pb: 2 }}>
-          <Typography variant="body1" color="text.secondary">
-            {modalMessage}
-          </Typography>
+          <Typography variant="body1" color="text.secondary">{modalMessage}</Typography>
         </DialogContent>
-        
         <DialogActions sx={{ justifyContent: "center", pb: 4 }}>
-          <Button
-            onClick={() => setErrorModal(false)}
-            variant="contained"
-            color="error"
-            size="large"
-            sx={{
-              px: 6,
-              py: 1.5,
-              borderRadius: 2,
-              fontWeight: 700,
-            }}
-          >
+          <Button onClick={() => setErrorModal(false)} variant="contained" color="error" size="large" sx={{ px: 6, py: 1.5, borderRadius: 2, fontWeight: 700 }}>
             Got it
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog
-        open={passwordSuccessModal}
-        TransitionComponent={Transition}
-        keepMounted
-        onClose={() => setPasswordSuccessModal(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 4,
-            boxShadow: "0 24px 48px rgba(0,0,0,0.3)",
-          }
-        }}
-      >
+      {/* Password Success Modal */}
+      <Dialog open={passwordSuccessModal} TransitionComponent={Transition} keepMounted onClose={() => setPasswordSuccessModal(false)}
+        maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 4, boxShadow: "0 24px 48px rgba(0,0,0,0.3)" } }}>
         <DialogTitle sx={{ textAlign: "center", pt: 4, pb: 2 }}>
-          <Box
-            sx={{
-              width: 80,
-              height: 80,
-              borderRadius: "50%",
-              bgcolor: "success.lighter",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              mx: "auto",
-              mb: 2,
-            }}
-          >
+          <Box sx={{ width: 80, height: 80, borderRadius: "50%", bgcolor: "success.lighter", display: "flex", alignItems: "center", justifyContent: "center", mx: "auto", mb: 2 }}>
             <Lock sx={{ fontSize: 48, color: "success.main" }} />
           </Box>
-          <Typography variant="h5" fontWeight={700} color="success.main">
-            Password Updated!
-          </Typography>
+          <Typography variant="h5" fontWeight={700} color="success.main">Password Updated!</Typography>
         </DialogTitle>
-        
         <DialogContent sx={{ textAlign: "center", pb: 2 }}>
-          <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-            Your password has been changed successfully.
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Make sure to remember your new password for future logins.
-          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>Your password has been changed successfully.</Typography>
+          <Typography variant="body2" color="text.secondary">Make sure to remember your new password for future logins.</Typography>
         </DialogContent>
-        
         <DialogActions sx={{ justifyContent: "center", pb: 4 }}>
-          <Button
-            onClick={() => setPasswordSuccessModal(false)}
-            variant="contained"
-            color="success"
-            size="large"
-            sx={{
-              px: 6,
-              py: 1.5,
-              borderRadius: 2,
-              fontWeight: 700,
-            }}
-          >
+          <Button onClick={() => setPasswordSuccessModal(false)} variant="contained" color="success" size="large" sx={{ px: 6, py: 1.5, borderRadius: 2, fontWeight: 700 }}>
             Perfect!
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog
-        open={deleteAvatarModal}
-        TransitionComponent={Transition}
-        onClose={() => setDeleteAvatarModal(false)}
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            maxWidth: 450,
-          },
-        }}
-      >
+      {/* Delete Avatar Modal */}
+      <Dialog open={deleteAvatarModal} TransitionComponent={Transition} onClose={() => setDeleteAvatarModal(false)}
+        PaperProps={{ sx: { borderRadius: 3, maxWidth: 450 } }}>
         <DialogTitle sx={{ pb: 1 }}>
           <Stack direction="row" alignItems="center" spacing={1}>
             <Warning sx={{ color: "warning.main", fontSize: 28 }} />
-            <Typography variant="h6" fontWeight={700}>
-              Remove Profile Picture?
-            </Typography>
+            <Typography variant="h6" fontWeight={700}>Remove Profile Picture?</Typography>
           </Stack>
         </DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Are you sure you want to remove your profile picture? Your avatar will be reset
-            to the default image with your initials.
+            Are you sure you want to remove your profile picture? Your avatar will be reset to the default image with your initials.
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ p: 2.5, pt: 0 }}>
-          <Button onClick={() => setDeleteAvatarModal(false)} variant="outlined">
-            Keep It
-          </Button>
-          <Button
-            onClick={handleDeleteAvatarConfirm}
-            variant="contained"
-            color="warning"
-            startIcon={<Delete />}
-            sx={{
-              fontWeight: 600,
-            }}
-          >
+          <Button onClick={() => setDeleteAvatarModal(false)} variant="outlined">Keep It</Button>
+          <Button onClick={handleDeleteAvatarConfirm} variant="contained" color="warning" startIcon={<Delete />} sx={{ fontWeight: 600 }}>
             Remove
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog
-        open={deleteAccountModal}
-        TransitionComponent={Transition}
-        onClose={() => !loading && setDeleteAccountModal(false)}
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            maxWidth: 500,
-          },
-        }}
-      >
+      {/* Delete Account Modal */}
+      <Dialog open={deleteAccountModal} TransitionComponent={Transition} onClose={() => !loading && setDeleteAccountModal(false)}
+        PaperProps={{ sx: { borderRadius: 3, maxWidth: 500 } }}>
         <DialogTitle sx={{ pb: 1 }}>
           <Stack direction="row" alignItems="center" spacing={1}>
             <Warning sx={{ color: "error.main", fontSize: 32 }} />
-            <Typography variant="h5" fontWeight={700} color="error">
-              Delete Account Permanently
-            </Typography>
+            <Typography variant="h5" fontWeight={700} color="error">Delete Account Permanently</Typography>
           </Stack>
         </DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 3 }}>
-            ⚠️ <strong>This action cannot be undone!</strong>
-            <br />
-            <br />
+            ⚠️ <strong>This action cannot be undone!</strong><br /><br />
             All your data will be permanently deleted:
           </DialogContentText>
           <Box component="ul" sx={{ pl: 3, mb: 3 }}>
-            <Typography component="li" variant="body2" sx={{ mb: 1 }}>
-              Profile information and settings
-            </Typography>
-            <Typography component="li" variant="body2" sx={{ mb: 1 }}>
-              All enrolled courses and progress
-            </Typography>
-            <Typography component="li" variant="body2" sx={{ mb: 1 }}>
-              Certificates and achievements
-            </Typography>
-            <Typography component="li" variant="body2">
-              Payment history and preferences
-            </Typography>
+            <Typography component="li" variant="body2" sx={{ mb: 1 }}>Profile information and settings</Typography>
+            <Typography component="li" variant="body2" sx={{ mb: 1 }}>All enrolled courses and progress</Typography>
+            <Typography component="li" variant="body2" sx={{ mb: 1 }}>Certificates and achievements</Typography>
+            <Typography component="li" variant="body2">Payment history and preferences</Typography>
           </Box>
           <DialogContentText sx={{ mb: 2, fontWeight: 600 }}>
-            To confirm deletion, type{" "}
-            <strong style={{ color: theme.palette.error.main }}>DELETE</strong> below:
+            To confirm deletion, type <strong style={{ color: theme.palette.error.main }}>DELETE</strong> below:
           </DialogContentText>
           <TextField
-            fullWidth
-            placeholder="Type DELETE to confirm"
-            value={confirmText}
-            onChange={(e) => setConfirmText(e.target.value)}
-            disabled={loading}
-            sx={{
-              "& .MuiOutlinedInput-root": {
-                "&.Mui-focused fieldset": {
-                  borderColor: "error.main",
-                },
-              },
-            }}
+            fullWidth placeholder="Type DELETE to confirm"
+            value={confirmText} onChange={(e) => setConfirmText(e.target.value)} disabled={loading}
           />
         </DialogContent>
         <DialogActions sx={{ p: 2.5, pt: 0 }}>
-          <Button
-            onClick={() => {
-              setDeleteAccountModal(false);
-              setConfirmText("");
-            }}
-            variant="outlined"
-            disabled={loading}
-          >
+          <Button onClick={() => { setDeleteAccountModal(false); setConfirmText(""); }} variant="outlined" disabled={loading}>
             Cancel
           </Button>
           <Button
-            onClick={handleDeleteAccountConfirm}
-            variant="contained"
-            color="error"
+            onClick={handleDeleteAccountConfirm} variant="contained" color="error"
             startIcon={loading ? <CircularProgress size={20} /> : <Delete />}
-            disabled={loading || confirmText !== "DELETE"}
-            sx={{
-              fontWeight: 600,
-            }}
+            disabled={loading || confirmText !== "DELETE"} sx={{ fontWeight: 600 }}
           >
             {loading ? "Deleting..." : "Delete Forever"}
           </Button>
