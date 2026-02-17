@@ -24,6 +24,7 @@ import {
   CloudUpload as UploadIcon,
 } from "@mui/icons-material";
 import { useAuth } from "../context/AuthContext";
+import { fileToBase64, validateImageFile } from "../utility/image";
 
 function Register() {
   const navigate = useNavigate();
@@ -38,8 +39,7 @@ function Register() {
     role: "USER",
   });
 
-  const [avatarFile, setAvatarFile] = useState(null);
-  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null); // base64 string
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -47,39 +47,31 @@ function Register() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
     setError("");
   };
 
-  const handleAvatarChange = (e) => {
+  // تحويل الصورة لـ base64 في الفرونت مباشرة
+  const handleAvatarChange = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (!file.type.startsWith("image/")) {
-        setError("Please select an image file");
-        return;
-      }
+    if (!file) return;
 
-      if (file.size > 5 * 1024 * 1024) {
-        setError("Image size must be less than 5MB");
-        return;
-      }
+    const { valid, error: validationError } = validateImageFile(file, 5);
+    if (!valid) {
+      setError(validationError);
+      return;
+    }
 
-      setAvatarFile(file);
+    try {
+      const base64 = await fileToBase64(file);
+      setAvatarPreview(base64);
       setError("");
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+    } catch {
+      setError("Failed to read image file");
     }
   };
 
   const handleRemoveAvatar = () => {
-    setAvatarFile(null);
     setAvatarPreview(null);
   };
 
@@ -87,13 +79,7 @@ function Register() {
     e.preventDefault();
     setError("");
 
-    // Validation
-    if (
-      !formData.firstName ||
-      !formData.lastName ||
-      !formData.email ||
-      !formData.password
-    ) {
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
       setError("All required fields must be filled");
       return;
     }
@@ -111,18 +97,17 @@ function Register() {
     setLoading(true);
 
     try {
-      const registerData = new FormData();
-      registerData.append("firstName", formData.firstName);
-      registerData.append("lastName", formData.lastName);
-      registerData.append("email", formData.email);
-      registerData.append("password", formData.password);
-      registerData.append("role", formData.role);
+      // JSON عادي بدل FormData
+      const payload = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+        avatar: avatarPreview || null,  // base64 string أو null
+      };
 
-      if (avatarFile) {
-        registerData.append("avatar", avatarFile);
-      }
-
-      const result = await register(registerData);
+      const result = await register(payload);
 
       if (result.success) {
         navigate("/login");
@@ -170,16 +155,14 @@ function Register() {
           </Typography>
         </Box>
 
-        {/* Error Alert */}
         {error && (
           <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError("")}>
             {error}
           </Alert>
         )}
 
-        {/* Form */}
         <Box component="form" onSubmit={handleSubmit}>
-          {/* Avatar Upload - Optional */}
+          {/* Avatar Upload */}
           <Box sx={{ textAlign: "center", mb: 3 }}>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontWeight: 600 }}>
               Profile Picture (Optional)
@@ -206,97 +189,48 @@ function Register() {
                   fontSize: "2.5rem",
                   fontWeight: 700,
                   transition: "all 0.3s",
-                  "&:hover": {
-                    borderColor: "primary.dark",
-                    transform: "scale(1.05)",
-                  },
+                  "&:hover": { borderColor: "primary.dark", transform: "scale(1.05)" },
                 }}
               >
-                {avatarPreview ? null : (
-                  <UploadIcon sx={{ fontSize: 40, color: "text.secondary" }} />
-                )}
+                {!avatarPreview && <UploadIcon sx={{ fontSize: 40, color: "text.secondary" }} />}
               </Avatar>
             </label>
             <Typography variant="caption" color="text.secondary" display="block">
               {avatarPreview ? "Click to change" : "Click to upload (max 5MB)"}
             </Typography>
             {avatarPreview && (
-              <Button
-                size="small"
-                onClick={handleRemoveAvatar}
-                sx={{ mt: 1, fontSize: "0.75rem" }}
-              >
+              <Button size="small" onClick={handleRemoveAvatar} sx={{ mt: 1, fontSize: "0.75rem" }}>
                 Remove
               </Button>
             )}
-            <Typography
-              variant="caption"
-              color="success.main"
-              display="block"
-              sx={{ mt: 1, fontWeight: 600 }}
-            >
+            <Typography variant="caption" color="success.main" display="block" sx={{ mt: 1, fontWeight: 600 }}>
               ✓ You can skip this and add it later from your profile
             </Typography>
           </Box>
 
-          {/* First Name & Last Name */}
           <Grid container spacing={2} sx={{ mb: 2 }}>
             <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="First Name"
-                name="firstName"
-                value={formData.firstName}
-                onChange={handleChange}
-                required
-                autoComplete="given-name"
-              />
+              <TextField fullWidth label="First Name" name="firstName"
+                value={formData.firstName} onChange={handleChange} required autoComplete="given-name" />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Last Name"
-                name="lastName"
-                value={formData.lastName}
-                onChange={handleChange}
-                required
-                autoComplete="family-name"
-              />
+              <TextField fullWidth label="Last Name" name="lastName"
+                value={formData.lastName} onChange={handleChange} required autoComplete="family-name" />
             </Grid>
           </Grid>
 
-          {/* Email */}
-          <TextField
-            fullWidth
-            label="Email Address"
-            name="email"
-            type="email"
-            value={formData.email}
-            onChange={handleChange}
-            required
-            autoComplete="email"
-            sx={{ mb: 2 }}
-          />
+          <TextField fullWidth label="Email Address" name="email" type="email"
+            value={formData.email} onChange={handleChange} required autoComplete="email" sx={{ mb: 2 }} />
 
-          {/* Password */}
           <TextField
-            fullWidth
-            label="Password"
-            name="password"
+            fullWidth label="Password" name="password"
             type={showPassword ? "text" : "password"}
-            value={formData.password}
-            onChange={handleChange}
-            required
-            autoComplete="new-password"
-            sx={{ mb: 2 }}
-            helperText="At least 6 characters"
+            value={formData.password} onChange={handleChange}
+            required autoComplete="new-password" sx={{ mb: 2 }} helperText="At least 6 characters"
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => setShowPassword(!showPassword)}
-                    edge="end"
-                  >
+                  <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
                     {showPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
                 </InputAdornment>
@@ -304,24 +238,15 @@ function Register() {
             }}
           />
 
-          {/* Confirm Password */}
           <TextField
-            fullWidth
-            label="Confirm Password"
-            name="confirmPassword"
+            fullWidth label="Confirm Password" name="confirmPassword"
             type={showConfirmPassword ? "text" : "password"}
-            value={formData.confirmPassword}
-            onChange={handleChange}
-            required
-            autoComplete="new-password"
-            sx={{ mb: 2 }}
+            value={formData.confirmPassword} onChange={handleChange}
+            required autoComplete="new-password" sx={{ mb: 2 }}
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    edge="end"
-                  >
+                  <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end">
                     {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
                 </InputAdornment>
@@ -329,61 +254,33 @@ function Register() {
             }}
           />
 
-          {/* Role */}
           <FormControl fullWidth sx={{ mb: 3 }}>
             <InputLabel>Role *</InputLabel>
-            <Select
-              name="role"
-              value={formData.role}
-              onChange={handleChange}
-              label="Role *"
-              required
-            >
+            <Select name="role" value={formData.role} onChange={handleChange} label="Role *" required>
               <MenuItem value="USER">User / Student</MenuItem>
               <MenuItem value="MANAGER">Manager</MenuItem>
               <MenuItem value="ADMIN">Admin</MenuItem>
             </Select>
           </FormControl>
 
-          {/* Submit Button */}
           <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            size="large"
-            disabled={loading}
+            type="submit" fullWidth variant="contained" size="large" disabled={loading}
             sx={{
-              py: 1.5,
-              mb: 2,
-              fontWeight: 700,
-              fontSize: "1rem",
+              py: 1.5, mb: 2, fontWeight: 700, fontSize: "1rem",
               background: "linear-gradient(45deg, #6366f1, #f59e0b)",
-              "&:hover": {
-                background: "linear-gradient(45deg, #4f46e5, #d97706)",
-              },
-              "&:disabled": {
-                background: "linear-gradient(45deg, #9ca3af, #d1d5db)",
-              },
+              "&:hover": { background: "linear-gradient(45deg, #4f46e5, #d97706)" },
+              "&:disabled": { background: "linear-gradient(45deg, #9ca3af, #d1d5db)" },
             }}
           >
             {loading ? "Creating Account..." : "Create Account"}
           </Button>
 
-          {/* Login Link */}
           <Box sx={{ textAlign: "center" }}>
             <Typography variant="body2" color="text.secondary">
               Already have an account?{" "}
               <Typography
-                component={Link}
-                to="/login"
-                sx={{
-                  color: "primary.main",
-                  textDecoration: "none",
-                  fontWeight: 600,
-                  "&:hover": {
-                    textDecoration: "underline",
-                  },
-                }}
+                component={Link} to="/login"
+                sx={{ color: "primary.main", textDecoration: "none", fontWeight: 600, "&:hover": { textDecoration: "underline" } }}
               >
                 Sign In
               </Typography>

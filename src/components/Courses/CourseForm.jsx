@@ -14,7 +14,7 @@ import {
 } from "@mui/material";
 import { CloudUpload, Save, ArrowBack } from "@mui/icons-material";
 import { createCourse, updateCourse, getCourseById } from "../../api/coursesApi";
-import { compressAndConvertToBase64, validateImageFile, getImageUrl }  from "../utility/image";
+import { compressAndConvertToBase64, validateImageFile, getImageUrl }  from "../../utility/image";
 
 function CourseForm() {
   const { id } = useParams();
