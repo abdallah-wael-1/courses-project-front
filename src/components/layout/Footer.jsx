@@ -79,7 +79,7 @@ export default function Footer() {
             <Box sx={{ display: "flex", gap: 1 }}>
               <IconButton
                 component={Link}
-                href="https://www.linkedin.com/in/abdallah-wael"
+                href="https://www.linkedin.com/in/abdallah-wael-56a215357/"
                 target="_blank"
                 sx={{
                   border: "1px solid",
