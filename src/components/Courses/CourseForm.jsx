@@ -90,10 +90,12 @@ function CourseForm() {
     try {
       const base64 = await fileToBase64(file);
       setImagePreview(base64);
-      
+
+      // في حالة edit، احفظ في localStorage فوراً
       if (id) {
         localStorage.setItem(`course_preview_${id}`, base64);
       }
+      // في حالة create، هنحفظ بعد ما الـ backend يرجع الـ id الجديد
     } catch {
       setError("Failed to read image file");
     }
@@ -122,10 +124,21 @@ function CourseForm() {
       : await createCourse(payload);
 
     if (result.success) {
-      if (id) {
+      if (isEditMode) {
+        // edit: امسح الـ localStorage لأن الصورة اتحفظت في الـ DB
         localStorage.removeItem(`course_preview_${id}`);
+      } else {
+        // create: احفظ الصورة في localStorage بالـ id الجديد اللي رجع من الـ backend
+        const newCourseId =
+          result.data?._id ||
+          result.data?.course?._id ||
+          result.data?.id;
+
+        if (newCourseId && imagePreview) {
+          localStorage.setItem(`course_preview_${newCourseId}`, imagePreview);
+        }
       }
-      
+
       setSuccess(isEditMode ? "Course updated successfully!" : "Course created successfully!");
       setTimeout(() => navigate("/courses"), 1500);
     } else {
