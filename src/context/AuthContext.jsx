@@ -58,7 +58,7 @@ export const AuthProvider = ({ children }) => {
       const { data } = response.data;
       const newToken = data.token;
 
-      const newUser = {
+      let newUser = {
         _id: data._id,
         firstName: data.firstName,
         lastName: data.lastName,
@@ -67,10 +67,20 @@ export const AuthProvider = ({ children }) => {
         avatar: data.avatar,
       };
 
+      // If the frontend sent an avatar (base64) but backend doesn't persist it,
+      // keep the avatar locally so the user sees it immediately on this device.
+      if (userData && userData.avatar) {
+        newUser = { ...newUser, avatar: userData.avatar };
+      }
+
       setToken(newToken);
       setUser(newUser);
-      localStorage.setItem('token', newToken);
-      localStorage.setItem('user', JSON.stringify(newUser));
+      try {
+        localStorage.setItem('token', newToken);
+        localStorage.setItem('user', JSON.stringify(newUser));
+      } catch (e) {
+        // ignore localStorage errors
+      }
 
       return { success: true, data: newUser };
     } catch (error) {
@@ -174,6 +184,16 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('user');
   };
 
+  // Update user locally (update context + localStorage) without calling backend
+  const setLocalUser = (userData) => {
+    setUser(userData);
+    try {
+      localStorage.setItem('user', JSON.stringify(userData));
+    } catch (e) {
+      // ignore localStorage errors
+    }
+  };
+
   const value = {
     user,
     token,
@@ -183,6 +203,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     updateProfile,
+    setLocalUser,
     updatePassword,
     deleteAccount,
   };

@@ -48,7 +48,14 @@ function CourseCard({ course, onDelete, onEdit, onView }) {
           <CardMedia
             component="img"
             height="180"
-            image={getImageUrl(course.thumbnail)}
+            image={(() => {
+              try {
+                const local = localStorage.getItem(`course_preview_${course._id}`);
+                return local || getImageUrl(course.thumbnail);
+              } catch (e) {
+                return getImageUrl(course.thumbnail);
+              }
+            })()}
             alt={course.title}
             sx={{
               objectFit: "cover",

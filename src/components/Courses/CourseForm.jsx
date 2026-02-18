@@ -62,7 +62,12 @@ function CourseForm() {
         duration: course.duration,
         instructor: course.instructor,
       });
-      if (course.thumbnail) {
+      // Load local preview if present (user-only local image), otherwise show course thumbnail
+      const localKey = `course_preview_${id}`;
+      const localPreview = localStorage.getItem(localKey);
+      if (localPreview) {
+        setImagePreview(localPreview);
+      } else if (course.thumbnail) {
         setImagePreview(getImageUrl(course.thumbnail));
       }
     } else {
@@ -119,6 +124,21 @@ function CourseForm() {
       : await createCourse(payload);
 
     if (result.success) {
+      // Save base64 preview locally for this user only (keyed by course id)
+      try {
+        const courseId = isEditMode ? id : result.data.course?._id;
+        if (imagePreview && courseId) {
+          const localKey = `course_preview_${courseId}`;
+          localStorage.setItem(localKey, imagePreview);
+        }
+        // If user removed image in edit mode, ensure localStorage is cleared
+        if (!imagePreview && isEditMode) {
+          const localKey = `course_preview_${id}`;
+          localStorage.removeItem(localKey);
+        }
+      } catch (e) {
+        // ignore localStorage errors
+      }
       setSuccess(isEditMode ? "Course updated successfully!" : "Course created successfully!");
       setTimeout(() => navigate("/courses"), 1500);
     } else {
@@ -198,7 +218,14 @@ function CourseForm() {
               <Button
                 size="small"
                 color="error"
-                onClick={() => setImagePreview(null)}
+                onClick={() => {
+                  // remove preview and localStorage for this course if editing
+                  if (isEditMode) {
+                    const localKey = `course_preview_${id}`;
+                    localStorage.removeItem(localKey);
+                  }
+                  setImagePreview(null);
+                }}
                 sx={{ mt: 1 }}
               >
                 Remove Image

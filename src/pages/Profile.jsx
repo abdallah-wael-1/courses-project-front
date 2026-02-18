@@ -56,7 +56,7 @@ function Profile() {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const navigate = useNavigate();
-  const { user, updateProfile, updatePassword, deleteAccount, loading: authLoading } = useAuth();
+  const { user, updateProfile, updatePassword, deleteAccount, loading: authLoading, setLocalUser } = useAuth();
 
   const [editMode, setEditMode] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -190,13 +190,27 @@ function Profile() {
       const result = await updateProfile(payload);
 
       if (result.success) {
+        // If avatar was changed locally, backend won't store it (we disabled avatar in backend).
+        // Merge avatarBase64 into local user so Navbar and Profile show it only locally.
+        let finalUser = result.data;
+        if (avatarBase64) {
+          finalUser = { ...finalUser, avatar: avatarBase64 };
+          setLocalUser(finalUser);
+        } else if (payload.removeAvatar) {
+          // Ensure avatar removed locally as well
+          finalUser = { ...finalUser, avatar: null };
+          setLocalUser(finalUser);
+        } else {
+          // Update other fields returned from backend
+          setLocalUser(finalUser);
+        }
+
         setModalMessage("Your profile has been updated successfully!");
         setSuccessModal(true);
         setEditMode(false);
         setAvatarBase64(null);
-        // اعرض الصورة الجديدة من الـ response
         setTimeout(() => {
-          setAvatarPreview(result.data?.avatar ? getImageUrl(result.data.avatar) : null);
+          setAvatarPreview(finalUser?.avatar ? getImageUrl(finalUser.avatar) : null);
         }, 100);
       } else {
         setModalMessage(result.message || "Failed to update profile. Please try again.");
