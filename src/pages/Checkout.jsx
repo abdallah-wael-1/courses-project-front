@@ -24,7 +24,6 @@ import {
 import { CreditCard, Lock, ErrorOutline, CheckCircleOutline } from "@mui/icons-material";
 import { getCourseById } from "../api/coursesApi";
 import { enrollInCourse } from "../api/enrollmentsApi";
-// import { getImageUrl } from "../utility/image";
 import { useAuth } from "../context/AuthContext";
 import React from "react";
 
@@ -62,7 +61,6 @@ function Checkout() {
     }
 
     const fetchCourse = async () => {
-      // ✅ جرب تجيب البيانات من localStorage الأول
       try {
         const cachedCourse = localStorage.getItem(`checkout_course_${courseId}`);
         if (cachedCourse) {
@@ -75,7 +73,6 @@ function Checkout() {
         console.error('Failed to load cached course:', e);
       }
 
-      // ✅ لو مش موجودة في localStorage، جيبها من الباك
       const result = await getCourseById(courseId);
       if (result.success) {
         setCourse(result.data);
@@ -155,7 +152,6 @@ function Checkout() {
       const result = await enrollInCourse(courseId);
 
       if (result.success) {
-        // ✅ امسح البيانات المحفوظة بعد الـ enrollment الناجح
         try {
           localStorage.removeItem(`checkout_course_${courseId}`);
           localStorage.removeItem(`course_preview_${courseId}`);

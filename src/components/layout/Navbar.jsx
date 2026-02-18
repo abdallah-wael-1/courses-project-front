@@ -46,7 +46,6 @@ function Navbar() {
 
   const { isAuthenticated, user, logout } = useAuth();
 
-  // الـ avatar دلوقتي base64 أو URL كامل أو null - مفيش معالجة محتاجة
   const avatarUrl = user?.avatar || null;
 
   const userInitials = (() => {

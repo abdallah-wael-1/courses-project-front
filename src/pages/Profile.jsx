@@ -83,9 +83,9 @@ function Profile() {
     education: "",
   });
 
-  // Avatar - base64 string بدل File object
-  const [avatarBase64, setAvatarBase64] = useState(null);   // الصورة الجديدة المختارة
-  const [avatarPreview, setAvatarPreview] = useState(null);  // للعرض في الـ UI
+  // Avatar 
+  const [avatarBase64, setAvatarBase64] = useState(null);  
+  const [avatarPreview, setAvatarPreview] = useState(null);  
 
   // Password Change
   const [passwordData, setPasswordData] = useState({
@@ -126,7 +126,6 @@ function Profile() {
     setPasswordData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // تحويل الصورة لـ base64 في الفرونت مباشرة
   const handleAvatarChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -166,10 +165,7 @@ function Profile() {
     setLoading(true);
 
     try {
-      // بنبعت JSON عادي بدون FormData
       const payload = {};
-
-      // بس الحقول اللي اتغيرت
       const textFields = [
         'firstName', 'lastName', 'phone', 'bio',
         'location', 'dateOfBirth', 'occupation', 'education'
@@ -180,28 +176,23 @@ function Profile() {
         }
       });
 
-      // الصورة
       if (avatarBase64) {
-        payload.avatar = avatarBase64;          // base64 string
+        payload.avatar = avatarBase64;         
       } else if (!avatarPreview && user.avatar) {
-        payload.removeAvatar = true;             // إشارة للباك يمسح الصورة
+        payload.removeAvatar = true;           
       }
 
       const result = await updateProfile(payload);
 
       if (result.success) {
-        // If avatar was changed locally, backend won't store it (we disabled avatar in backend).
-        // Merge avatarBase64 into local user so Navbar and Profile show it only locally.
         let finalUser = result.data;
         if (avatarBase64) {
           finalUser = { ...finalUser, avatar: avatarBase64 };
           setLocalUser(finalUser);
         } else if (payload.removeAvatar) {
-          // Ensure avatar removed locally as well
           finalUser = { ...finalUser, avatar: null };
           setLocalUser(finalUser);
         } else {
-          // Update other fields returned from backend
           setLocalUser(finalUser);
         }
 

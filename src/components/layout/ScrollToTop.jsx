@@ -1,4 +1,3 @@
-// src/components/ScrollToTop.jsx
 import React, { useState, useEffect } from "react";
 import { IconButton, Box, alpha, useTheme } from "@mui/material";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
@@ -21,7 +20,7 @@ export default function ScrollToTop({ showAfter = 300 }) {
       setScrollPercent(percent);
     };
 
-    handleScroll(); // initial check
+    handleScroll(); 
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, [showAfter]);
@@ -35,11 +34,8 @@ export default function ScrollToTop({ showAfter = 300 }) {
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (scrollPercent / 100) * circumference;
 
-  // ────────────────────────────────────────────────
-  // Theme-aware colors (no hex hardcodes)
-  // ────────────────────────────────────────────────
   const circleBgStroke = isDark
-    ? alpha(theme.palette.common.white, 0.18)   // slightly softer than 0.2 in dark mode
+    ? alpha(theme.palette.common.white, 0.18)   
     : theme.palette.divider;
 
   const progressStroke = theme.palette.primary.main;
@@ -63,7 +59,7 @@ export default function ScrollToTop({ showAfter = 300 }) {
               position: "fixed",
               right: { xs: 16, sm: 24, md: 32 },
               bottom: { xs: 16, sm: 24, md: 32 },
-              zIndex: theme.zIndex.speedDial, // usually 1300–1400 range
+              zIndex: theme.zIndex.speedDial, 
               width: 64,
               height: 64,
               display: "flex",
@@ -109,14 +105,13 @@ export default function ScrollToTop({ showAfter = 300 }) {
             <IconButton
               size="large"
               aria-label="Scroll to top"
-              onClick={scrollToTop} // optional — Box already has it
+              onClick={scrollToTop} 
               sx={{
                 width: 56,
                 height: 56,
                 bgcolor: buttonBg,
-                color: "text.primary",           // better contrast than contrastText in many cases
-                boxShadow: theme.shadows[4],
-                backdropFilter: "blur(8px)",     // nice modern touch (optional)
+                color: "text.primary",           
+                backdropFilter: "blur(8px)",    
                 transition: "all 0.22s ease",
                 "&:hover": {
                   bgcolor: alpha(theme.palette.primary.main, 0.08),

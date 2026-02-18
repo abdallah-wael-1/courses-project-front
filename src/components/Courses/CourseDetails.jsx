@@ -49,9 +49,7 @@ function CourseDetails({ open, onClose, course }) {
       return;
     }
 
-    // ✅ خزّن معلومات الكورس كاملة في localStorage قبل الروح للـ Checkout
     try {
-      // الصورة - جيبها من localStorage لو موجودة (preview)، أو من الباك
       const thumbnail = localStorage.getItem(`course_preview_${course._id}`) || getImageUrl(course.thumbnail);
       
       const courseData = {
@@ -276,7 +274,7 @@ function CourseDetails({ open, onClose, course }) {
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar للإشعارات */}
+      {/* Snackbar*/}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}

@@ -91,7 +91,6 @@ function CourseForm() {
       const base64 = await fileToBase64(file);
       setImagePreview(base64);
       
-      // ✅ خزّن الصورة في localStorage عشان تظهر في Checkout/CourseCard
       if (id) {
         localStorage.setItem(`course_preview_${id}`, base64);
       }

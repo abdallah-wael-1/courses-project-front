@@ -92,7 +92,7 @@ function UserSection() {
   };
 
   const handleProgressUpdate = () => {
-    fetchDashboard(true); // Refresh with indicator
+    fetchDashboard(true); 
   };
 
   // Handle manual refresh

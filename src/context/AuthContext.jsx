@@ -1,4 +1,3 @@
-// context/AuthContext.jsx
 import { createContext, useState, useContext, useEffect } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import axiosInstance from '../api/axiosInstance';
@@ -49,11 +48,10 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, []);
 
-  // Register - ✅ JSON بدل FormData
+  // Register 
   const register = async (userData) => {
     try {
       const response = await axiosInstance.post('/users/register', userData);
-      // userData هنا object عادي فيه avatar كـ base64 string لو موجود
 
       const { data } = response.data;
       const newToken = data.token;
@@ -67,8 +65,6 @@ export const AuthProvider = ({ children }) => {
         avatar: data.avatar,
       };
 
-      // If the frontend sent an avatar (base64) but backend doesn't persist it,
-      // keep the avatar locally so the user sees it immediately on this device.
       if (userData && userData.avatar) {
         newUser = { ...newUser, avatar: userData.avatar };
       }
@@ -79,7 +75,8 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('token', newToken);
         localStorage.setItem('user', JSON.stringify(newUser));
       } catch (e) {
-        // ignore localStorage errors
+        console.log(e);
+        
       }
 
       return { success: true, data: newUser };
@@ -127,11 +124,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Update Profile - ✅ JSON بدل FormData
+  // Update Profile 
   const updateProfile = async (payload) => {
     try {
       const response = await axiosInstance.patch('/users/profile', payload);
-      // payload هنا object عادي فيه avatar كـ base64 string لو اتغيرت
 
       const updatedUser = response.data.data;
 
@@ -184,13 +180,13 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('user');
   };
 
-  // Update user locally (update context + localStorage) without calling backend
   const setLocalUser = (userData) => {
     setUser(userData);
     try {
       localStorage.setItem('user', JSON.stringify(userData));
     } catch (e) {
-      // ignore localStorage errors
+      console.log(e);
+      
     }
   };
 

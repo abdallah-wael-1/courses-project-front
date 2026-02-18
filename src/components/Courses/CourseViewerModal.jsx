@@ -1,4 +1,3 @@
-// src/components/Courses/CourseViewerModal.jsx
 import { useState } from 'react';
 import {
   Dialog,
@@ -27,7 +26,7 @@ function CourseViewerModal({ open, onClose, course, onProgressUpdate }) {
     setLoading(true);
     setError('');
     
-    // ✅ Update progress to 100%
+    //  Update progress to 100%
     const result = await updateCourseProgress(course.id, {
       progress: 100,
       completedLessons: course.totalLessons
@@ -36,8 +35,8 @@ function CourseViewerModal({ open, onClose, course, onProgressUpdate }) {
     if (result.success) {
       setCompleted(true);
       setTimeout(() => {
-        onProgressUpdate?.(); // Refresh dashboard
-        setCompleted(false); // Reset for next time
+        onProgressUpdate?.(); 
+        setCompleted(false); 
         onClose();
       }, 2500);
     } else {
@@ -171,7 +170,7 @@ function CourseViewerModal({ open, onClose, course, onProgressUpdate }) {
               size="small"
             />
             <Chip 
-              label={`⭐ ${course.rating} Rating`} 
+              label={` ${course.rating} Rating`} 
               variant="outlined"
               size="small"
             />

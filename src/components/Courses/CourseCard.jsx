@@ -1,4 +1,3 @@
-// src/components/Courses/CourseCard.jsx
 import {
   Card,
   CardContent,
@@ -186,7 +185,6 @@ function CourseCard({ course, onDelete, onEdit, onView }) {
               ${course.price}
             </Typography>
 
-            {/* ✅ الزرار ده بيفتح الـ Modal (onView) مش بيعمل Enrollment */}
             <Button
               variant="contained"
               size="small"
