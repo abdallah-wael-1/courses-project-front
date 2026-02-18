@@ -14,7 +14,7 @@ import {
 } from "@mui/material";
 import { CloudUpload, Save, ArrowBack } from "@mui/icons-material";
 import { createCourse, updateCourse, getCourseById } from "../../api/coursesApi";
-import { compressAndConvertToBase64, validateImageFile, getImageUrl }  from "../../utility/image";
+import { fileToBase64, validateImageFile, getImageUrl } from "../../utility/image";
 
 function CourseForm() {
   const { id } = useParams();
@@ -62,12 +62,7 @@ function CourseForm() {
         duration: course.duration,
         instructor: course.instructor,
       });
-      // Load local preview if present (user-only local image), otherwise show course thumbnail
-      const localKey = `course_preview_${id}`;
-      const localPreview = localStorage.getItem(localKey);
-      if (localPreview) {
-        setImagePreview(localPreview);
-      } else if (course.thumbnail) {
+      if (course.thumbnail) {
         setImagePreview(getImageUrl(course.thumbnail));
       }
     } else {
@@ -93,8 +88,13 @@ function CourseForm() {
     }
 
     try {
-      const base64 = await compressAndConvertToBase64(file, 800, 0.65);
+      const base64 = await fileToBase64(file);
       setImagePreview(base64);
+      
+      // ✅ خزّن الصورة في localStorage عشان تظهر في Checkout/CourseCard
+      if (id) {
+        localStorage.setItem(`course_preview_${id}`, base64);
+      }
     } catch {
       setError("Failed to read image file");
     }
@@ -113,10 +113,9 @@ function CourseForm() {
 
     setLoading(true);
 
-    // بنبعت JSON عادي - الصورة base64 string جوا الـ body
     const payload = {
       ...formData,
-      thumbnail: imagePreview || undefined,  // base64 string أو URL موجود
+      thumbnail: imagePreview || undefined,
     };
 
     const result = isEditMode
@@ -124,21 +123,10 @@ function CourseForm() {
       : await createCourse(payload);
 
     if (result.success) {
-      // Save base64 preview locally for this user only (keyed by course id)
-      try {
-        const courseId = isEditMode ? id : result.data.course?._id;
-        if (imagePreview && courseId) {
-          const localKey = `course_preview_${courseId}`;
-          localStorage.setItem(localKey, imagePreview);
-        }
-        // If user removed image in edit mode, ensure localStorage is cleared
-        if (!imagePreview && isEditMode) {
-          const localKey = `course_preview_${id}`;
-          localStorage.removeItem(localKey);
-        }
-      } catch (e) {
-        // ignore localStorage errors
+      if (id) {
+        localStorage.removeItem(`course_preview_${id}`);
       }
+      
       setSuccess(isEditMode ? "Course updated successfully!" : "Course created successfully!");
       setTimeout(() => navigate("/courses"), 1500);
     } else {
@@ -175,7 +163,7 @@ function CourseForm() {
 
         <Box component="form" onSubmit={handleSubmit}>
 
-          {/* Image Upload - كل حاجة في الفرونت */}
+          {/* Image Upload */}
           <Box sx={{ textAlign: "center", mb: 4 }}>
             <input
               accept="image/*"
@@ -215,19 +203,7 @@ function CourseForm() {
             </label>
 
             {imagePreview && (
-              <Button
-                size="small"
-                color="error"
-                onClick={() => {
-                  // remove preview and localStorage for this course if editing
-                  if (isEditMode) {
-                    const localKey = `course_preview_${id}`;
-                    localStorage.removeItem(localKey);
-                  }
-                  setImagePreview(null);
-                }}
-                sx={{ mt: 1 }}
-              >
+              <Button size="small" color="error" onClick={() => setImagePreview(null)} sx={{ mt: 1 }}>
                 Remove Image
               </Button>
             )}
@@ -290,10 +266,7 @@ function CourseForm() {
               Cancel
             </Button>
             <Button
-              type="submit"
-              variant="contained"
-              fullWidth
-              disabled={loading}
+              type="submit" variant="contained" fullWidth disabled={loading}
               startIcon={loading ? <CircularProgress size={20} /> : <Save />}
               sx={{
                 background: "linear-gradient(45deg, #6366f1, #f59e0b)",

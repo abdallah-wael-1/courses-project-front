@@ -428,10 +428,17 @@ function Profile() {
 
           {/* Profile Content */}
           <Box sx={{ p: 4 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              justifyContent="space-between"
+              alignItems={{ xs: "stretch", sm: "center" }}
+              spacing={2}
+              sx={{ mb: 4 }}
+            >
               <Typography variant="h5" fontWeight={700}>Personal Information</Typography>
               {!editMode ? (
                 <Button
+                
                   startIcon={<Edit />}
                   variant="contained"
                   onClick={() => setEditMode(true)}
@@ -443,8 +450,12 @@ function Profile() {
                   Edit Profile
                 </Button>
               ) : (
-                <Stack direction="row" spacing={2}>
-                  <Button startIcon={<Cancel />} variant="outlined" onClick={handleCancelEdit} disabled={loading}>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={2}
+                  sx={{ width: { xs: "100%", sm: "auto" } }}
+                >
+                  <Button  startIcon={<Cancel />} variant="outlined" onClick={handleCancelEdit} disabled={loading}>
                     Cancel
                   </Button>
                   <Button
@@ -632,7 +643,7 @@ function Profile() {
           <Box sx={{ width: 80, height: 80, borderRadius: "50%", bgcolor: "success.lighter", display: "flex", alignItems: "center", justifyContent: "center", mx: "auto", mb: 2 }}>
             <CheckCircleOutline sx={{ fontSize: 48, color: "success.main" }} />
           </Box>
-          <Typography variant="h5" fontWeight={700} color="success.main">Success!</Typography>
+          <Typography variant="h5" component="div" fontWeight={700} color="success.main">Success!</Typography>
         </DialogTitle>
         <DialogContent sx={{ textAlign: "center", pb: 2 }}>
           <Typography variant="body1" color="text.secondary">{modalMessage}</Typography>
@@ -651,7 +662,7 @@ function Profile() {
           <Box sx={{ width: 80, height: 80, borderRadius: "50%", bgcolor: "error.lighter", display: "flex", alignItems: "center", justifyContent: "center", mx: "auto", mb: 2 }}>
             <ErrorOutline sx={{ fontSize: 48, color: "error.main" }} />
           </Box>
-          <Typography variant="h5" fontWeight={700} color="error.main">Oops!</Typography>
+          <Typography variant="h5" component="div" fontWeight={700} color="error.main">Oops!</Typography>
         </DialogTitle>
         <DialogContent sx={{ textAlign: "center", pb: 2 }}>
           <Typography variant="body1" color="text.secondary">{modalMessage}</Typography>
@@ -670,7 +681,7 @@ function Profile() {
           <Box sx={{ width: 80, height: 80, borderRadius: "50%", bgcolor: "success.lighter", display: "flex", alignItems: "center", justifyContent: "center", mx: "auto", mb: 2 }}>
             <Lock sx={{ fontSize: 48, color: "success.main" }} />
           </Box>
-          <Typography variant="h5" fontWeight={700} color="success.main">Password Updated!</Typography>
+          <Typography variant="h5" component="div" fontWeight={700} color="success.main">Password Updated!</Typography>
         </DialogTitle>
         <DialogContent sx={{ textAlign: "center", pb: 2 }}>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>Your password has been changed successfully.</Typography>
@@ -687,9 +698,9 @@ function Profile() {
       <Dialog open={deleteAvatarModal} TransitionComponent={Transition} onClose={() => setDeleteAvatarModal(false)}
         PaperProps={{ sx: { borderRadius: 3, maxWidth: 450 } }}>
         <DialogTitle sx={{ pb: 1 }}>
-          <Stack direction="row" alignItems="center" spacing={1}>
+            <Stack direction="row" alignItems="center" spacing={1}>
             <Warning sx={{ color: "warning.main", fontSize: 28 }} />
-            <Typography variant="h6" fontWeight={700}>Remove Profile Picture?</Typography>
+            <Typography variant="h6" component="div" fontWeight={700}>Remove Profile Picture?</Typography>
           </Stack>
         </DialogTitle>
         <DialogContent>
@@ -709,9 +720,9 @@ function Profile() {
       <Dialog open={deleteAccountModal} TransitionComponent={Transition} onClose={() => !loading && setDeleteAccountModal(false)}
         PaperProps={{ sx: { borderRadius: 3, maxWidth: 500 } }}>
         <DialogTitle sx={{ pb: 1 }}>
-          <Stack direction="row" alignItems="center" spacing={1}>
+            <Stack direction="row" alignItems="center" spacing={1}>
             <Warning sx={{ color: "error.main", fontSize: 32 }} />
-            <Typography variant="h5" fontWeight={700} color="error">Delete Account Permanently</Typography>
+            <Typography variant="h5" component="div" fontWeight={700} color="error">Delete Account Permanently</Typography>
           </Stack>
         </DialogTitle>
         <DialogContent>

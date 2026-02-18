@@ -24,7 +24,7 @@ import {
 import { CreditCard, Lock, ErrorOutline, CheckCircleOutline } from "@mui/icons-material";
 import { getCourseById } from "../api/coursesApi";
 import { enrollInCourse } from "../api/enrollmentsApi";
-import { getImageUrl } from "../utility/image";
+// import { getImageUrl } from "../utility/image";
 import { useAuth } from "../context/AuthContext";
 import React from "react";
 
@@ -62,6 +62,20 @@ function Checkout() {
     }
 
     const fetchCourse = async () => {
+      // ✅ جرب تجيب البيانات من localStorage الأول
+      try {
+        const cachedCourse = localStorage.getItem(`checkout_course_${courseId}`);
+        if (cachedCourse) {
+          const parsedCourse = JSON.parse(cachedCourse);
+          setCourse(parsedCourse);
+          setLoading(false);
+          return;
+        }
+      } catch (e) {
+        console.error('Failed to load cached course:', e);
+      }
+
+      // ✅ لو مش موجودة في localStorage، جيبها من الباك
       const result = await getCourseById(courseId);
       if (result.success) {
         setCourse(result.data);
@@ -105,7 +119,6 @@ function Checkout() {
   const handlePayment = async (e) => {
     e.preventDefault();
 
-    // Validation
     if (
       !paymentData.cardNumber ||
       !paymentData.cardName ||
@@ -142,6 +155,14 @@ function Checkout() {
       const result = await enrollInCourse(courseId);
 
       if (result.success) {
+        // ✅ امسح البيانات المحفوظة بعد الـ enrollment الناجح
+        try {
+          localStorage.removeItem(`checkout_course_${courseId}`);
+          localStorage.removeItem(`course_preview_${courseId}`);
+        } catch (e) {
+          console.error('Failed to clear cache:', e);
+        }
+        
         setProcessing(false);
         setSuccessModalOpen(true);
       } else {
@@ -241,7 +262,7 @@ function Checkout() {
                 <Box sx={{ mb: 3 }}>
                   <Box
                     component="img"
-                    src={getImageUrl(course.thumbnail)}
+                    src={course.thumbnail}
                     alt={course.title}
                     sx={{
                       width: "100%",
@@ -507,7 +528,7 @@ function Checkout() {
           >
             <ErrorOutline sx={{ fontSize: 48, color: "error.main" }} />
           </Box>
-          <Typography variant="h5" fontWeight={700} color="error.main">
+          <Typography variant="h5" component="div" fontWeight={700} color="error.main">
             Payment Error
           </Typography>
         </DialogTitle>
@@ -570,7 +591,7 @@ function Checkout() {
           >
             <CheckCircleOutline sx={{ fontSize: 48, color: "success.main" }} />
           </Box>
-          <Typography variant="h5" fontWeight={700} color="success.main">
+          <Typography variant="h5" component="div" fontWeight={700} color="success.main">
             Payment Successful!
           </Typography>
         </DialogTitle>
@@ -608,4 +629,4 @@ function Checkout() {
   );
 }
 
-export default Checkout;  
+export default Checkout;

@@ -52,15 +52,12 @@ function Login() {
 
     setLoading(true);
     try {
-const result = await login(formData);
-if (result.success) {
-  navigate("/courses");
-} else {
-  setError(result.message || "Login failed");
-}
-
-
-
+      const result = await login(formData);
+      if (result.success) {
+        navigate("/");  
+      } else {
+        setError(result.message || "Login failed");
+      }
     } catch (err) {
       setError(err.message || "Something went wrong");
     } finally {
@@ -90,7 +87,7 @@ if (result.success) {
               width: 56,
               height: 56,
               background: "linear-gradient(45deg, #6366f1, #f59e0b)",
-            }}
+            }}  
           >
             <LockOpenIcon sx={{ fontSize: 32 }} />
           </Avatar>

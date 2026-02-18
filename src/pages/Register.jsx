@@ -24,7 +24,6 @@ import {
   CloudUpload as UploadIcon,
 } from "@mui/icons-material";
 import { useAuth } from "../context/AuthContext";
-import { fileToBase64, validateImageFile } from "../utility/image";
 
 function Register() {
   const navigate = useNavigate();
@@ -39,7 +38,6 @@ function Register() {
     role: "USER",
   });
 
-  const [avatarPreview, setAvatarPreview] = useState(null); // base64 string
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -51,29 +49,6 @@ function Register() {
     setError("");
   };
 
-  // تحويل الصورة لـ base64 في الفرونت مباشرة
-  const handleAvatarChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const { valid, error: validationError } = validateImageFile(file, 5);
-    if (!valid) {
-      setError(validationError);
-      return;
-    }
-
-    try {
-      const base64 = await fileToBase64(file);
-      setAvatarPreview(base64);
-      setError("");
-    } catch {
-      setError("Failed to read image file");
-    }
-  };
-
-  const handleRemoveAvatar = () => {
-    setAvatarPreview(null);
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -97,14 +72,12 @@ function Register() {
     setLoading(true);
 
     try {
-      // JSON عادي بدل FormData
       const payload = {
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
         password: formData.password,
         role: formData.role,
-        avatar: avatarPreview || null,  // base64 string أو null
       };
 
       const result = await register(payload);
@@ -162,52 +135,6 @@ function Register() {
         )}
 
         <Box component="form" onSubmit={handleSubmit}>
-          {/* Avatar Upload */}
-          <Box sx={{ textAlign: "center", mb: 3 }}>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontWeight: 600 }}>
-              Profile Picture (Optional)
-            </Typography>
-            <input
-              accept="image/*"
-              style={{ display: "none" }}
-              id="avatar-upload"
-              type="file"
-              onChange={handleAvatarChange}
-            />
-            <label htmlFor="avatar-upload">
-              <Avatar
-                src={avatarPreview}
-                sx={{
-                  width: 100,
-                  height: 100,
-                  mx: "auto",
-                  mb: 1,
-                  cursor: "pointer",
-                  border: "3px dashed",
-                  borderColor: avatarPreview ? "primary.main" : "grey.400",
-                  bgcolor: "background.default",
-                  fontSize: "2.5rem",
-                  fontWeight: 700,
-                  transition: "all 0.3s",
-                  "&:hover": { borderColor: "primary.dark", transform: "scale(1.05)" },
-                }}
-              >
-                {!avatarPreview && <UploadIcon sx={{ fontSize: 40, color: "text.secondary" }} />}
-              </Avatar>
-            </label>
-            <Typography variant="caption" color="text.secondary" display="block">
-              {avatarPreview ? "Click to change" : "Click to upload (max 5MB)"}
-            </Typography>
-            {avatarPreview && (
-              <Button size="small" onClick={handleRemoveAvatar} sx={{ mt: 1, fontSize: "0.75rem" }}>
-                Remove
-              </Button>
-            )}
-            <Typography variant="caption" color="success.main" display="block" sx={{ mt: 1, fontWeight: 600 }}>
-              ✓ You can skip this and add it later from your profile
-            </Typography>
-          </Box>
-
           <Grid container spacing={2} sx={{ mb: 2 }}>
             <Grid item xs={12} sm={6}>
               <TextField fullWidth label="First Name" name="firstName"

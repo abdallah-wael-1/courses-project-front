@@ -1,4 +1,3 @@
-// src/components/Courses/CourseDetails.jsx
 import { useState } from 'react';
 import {
   Dialog,
@@ -38,7 +37,6 @@ function CourseDetails({ open, onClose, course }) {
   if (!course) return null;
 
   const handleEnroll = () => {
-    // ✅ تحقق من تسجيل الدخول فقط
     if (!user) {
       setSnackbar({
         open: true,
@@ -51,7 +49,30 @@ function CourseDetails({ open, onClose, course }) {
       return;
     }
 
-    // ✅ روح على الـ Checkout مباشرة (بدون enrollment)
+    // ✅ خزّن معلومات الكورس كاملة في localStorage قبل الروح للـ Checkout
+    try {
+      // الصورة - جيبها من localStorage لو موجودة (preview)، أو من الباك
+      const thumbnail = localStorage.getItem(`course_preview_${course._id}`) || getImageUrl(course.thumbnail);
+      
+      const courseData = {
+        _id: course._id,
+        title: course.title,
+        instructor: course.instructor,
+        price: course.price,
+        thumbnail: thumbnail,
+        category: course.category,
+        level: course.level,
+        duration: course.duration,
+        rating: course.rating,
+        studentsCount: course.studentsCount,
+        description: course.description
+      };
+      
+      localStorage.setItem(`checkout_course_${course._id}`, JSON.stringify(courseData));
+    } catch (error) {
+      console.error('Failed to store course data:', error);
+    }
+
     onClose();
     navigate(`/checkout/${course._id}`);
   };
@@ -64,7 +85,7 @@ function CourseDetails({ open, onClose, course }) {
     <>
       <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
         <DialogTitle>
-          <Typography variant="h5" fontWeight={700}>
+          <Typography variant="h5" component="div" fontWeight={700}>
             {course.title}
           </Typography>
         </DialogTitle>
@@ -75,7 +96,15 @@ function CourseDetails({ open, onClose, course }) {
             <Grid item xs={12} md={5}>
               <Box
                 component="img"
-                src={getImageUrl(course.thumbnail)}
+                src={(() => {
+                  try {
+                    const local = localStorage.getItem(`course_preview_${course._id}`);
+                    return local || getImageUrl(course.thumbnail);
+                  } catch (e) {
+                    console.error(e);
+                    return getImageUrl(course.thumbnail);
+                  }
+                })()}
                 alt={course.title}
                 sx={{
                   width: "100%",

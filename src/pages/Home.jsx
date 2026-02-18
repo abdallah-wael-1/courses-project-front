@@ -543,12 +543,7 @@ const CoursesSection = () => {
       try {
         setLoading(true);
         setError(null);
-
-        console.log('📤 Home.jsx - Fetching courses...');
-        
         const result = await getAllCourses({ limit: 6, sort: "-createdAt" });
-        
-        console.log('📦 Home.jsx - Result:', result);
 
         if (result && result.success) {
           const coursesData = result.data?.data?.courses || [];

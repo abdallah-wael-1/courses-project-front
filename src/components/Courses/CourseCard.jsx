@@ -35,6 +35,7 @@ function CourseCard({ course, onDelete, onEdit, onView }) {
         sx={{
           height: "100%",
           width: "320px",
+          marginLeft: "20px",
           borderRadius: 3,
           overflow: "hidden",
           boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
@@ -53,6 +54,7 @@ function CourseCard({ course, onDelete, onEdit, onView }) {
                 const local = localStorage.getItem(`course_preview_${course._id}`);
                 return local || getImageUrl(course.thumbnail);
               } catch (e) {
+                console.error(e);
                 return getImageUrl(course.thumbnail);
               }
             })()}
